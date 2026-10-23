@@ -1,1 +1,16 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mini Message</title><h1>Mini Message</h1><p>Project setup is in progress.</p></html>
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111827">
+<title>Mini Message</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script defer src="app.js"></script>
+</head>
+<body><main class="shell">
+<header class="top"><div class="mark">M</div><div><p class="eyebrow">LEARNING PROJECT</p><h1>Mini Message</h1></div><button id="logoutBtn" class="btn ghost hidden">Logout</button></header>
+<section id="authView" class="panel auth-panel"><p class="eyebrow">YOUR PRIVATE MESSAGE SPACE</p><h2 id="authTitle">Welcome back</h2><p class="muted">लॉगिन करें या नया अकाउंट बनाएँ। आपके मैसेज सुरक्षित रूप से सेव होंगे।</p>
+<form id="authForm"><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com" required><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="कम से कम 6 अक्षर" required><button id="authSubmit" class="btn primary" type="submit">Login</button></form>
+<p class="switch-line"><span id="switchText">नया अकाउंट चाहिए?</span> <button id="switchMode" class="text-btn" type="button">Register</button></p><p id="authStatus" class="status" role="status"></p></section>
+<section id="appView" class="hidden"><div class="welcome-row"><div><p class="eyebrow">YOUR DASHBOARD</p><h2>आपके मैसेज</h2></div><span id="count" class="count">0 messages</span></div>
+<section class="panel composer"><label for="messageInput">नया मैसेज</label><textarea id="messageInput" maxlength="500" rows="3" placeholder="यहाँ अपना मैसेज लिखें… (अधिकतम 500 अक्षर)"></textarea><div class="compose-foot"><span id="charCount" class="muted">0/500</span><button id="saveBtn" class="btn primary">मैसेज सेव करें</button></div><p id="appStatus" class="status" role="status"></p></section>
+<div id="messageList" class="message-list"></div><p id="emptyState" class="empty hidden">अभी कोई मैसेज नहीं है। अपना पहला मैसेज लिखें।</p></section>
+<footer>Mini Message · HTML, CSS, JavaScript + Supabase</footer></main></body></html>
