@@ -71,6 +71,7 @@ def check_links(urls, timeout=8, max_links=100, base_url=None):
                 redirect_count = len(history) if isinstance(history, (list, tuple)) else 0
                 metadata.update({
                     "final_url": final_url,
+                    "final_scope": _scope(final_url, base_url),
                     "status_code": status_code,
                     "redirect_count": redirect_count,
                 })
@@ -82,7 +83,8 @@ def check_links(urls, timeout=8, max_links=100, base_url=None):
                         "severity": "high" if status_code >= 500 else "medium",
                         "message": (
                             f"Linked URL returned HTTP {status_code}; final destination: {final_url}; "
-                            f"scope: {scope}; referenced by: {', '.join(source_urls) or 'unknown source'}"
+                            f"scope: {scope}; final scope: {metadata['final_scope']}; "
+                            f"referenced by: {', '.join(source_urls) or 'unknown source'}"
                         ),
                     })
                 elif redirect_count or final_url.rstrip("/") != target_url.rstrip("/"):
@@ -92,6 +94,7 @@ def check_links(urls, timeout=8, max_links=100, base_url=None):
                         "severity": "low",
                         "message": (
                             f"Link redirects {redirect_count} time(s) to {final_url}; scope: {scope}; "
+                            f"final scope: {metadata['final_scope']}; "
                             f"referenced by: {', '.join(source_urls) or 'unknown source'}"
                         ),
                     })
@@ -101,6 +104,7 @@ def check_links(urls, timeout=8, max_links=100, base_url=None):
                     "type": "broken_link",
                     "severity": "medium",
                     "final_url": None,
+                    "final_scope": None,
                     "status_code": None,
                     "redirect_count": 0,
                     "message": (
