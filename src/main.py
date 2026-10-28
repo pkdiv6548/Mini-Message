@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 from src.crawler import crawl_website
+from src.dashboard_generator import generate_dashboard
 from src.database import create_audit_run, save_findings
 from src.link_checker import check_links
 from src.lighthouse_analyzer import analyze_with_lighthouse
@@ -20,7 +21,8 @@ def main(argv=None):
     parser.add_argument("--dashboard-only", action="store_true")
     args = parser.parse_args(argv)
     if args.dashboard_only:
-        print("Dashboard generation will be added in the next project task.")
+        dashboard_path = generate_dashboard()
+        print(f"Dashboard: {dashboard_path}")
         return 0
     if not args.url:
         parser.error("url is required unless --dashboard-only is used")
