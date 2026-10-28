@@ -29,7 +29,7 @@ npm install -g lighthouse
 python -m src.main https://example.com --max-pages 10 --lighthouse
 ```
 
-Generated reports are saved under `reports/`; SQLite history is saved at `data/audits.db`.
+Generated reports are saved under `reports/`; SQLite history is saved at `data/audits.db`.\n\nGenerate an HTML dashboard from previous local audit runs:\n```bash\npython -m src.main --dashboard-only\n```\nThe dashboard is written to `reports/dashboard.html` and includes recent runs, page and issue counts, severity breakdowns, and broken-link counts. It reads your local SQLite database; the static Cloudflare Pages overview does not automatically access local audit history.
 
 ## Safety
 Only audit sites you own or have permission to test. Keep crawl limits reasonable. Do not put secrets in source control. This project makes no paid-service assumptions.
