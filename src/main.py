@@ -5,6 +5,7 @@ from pathlib import Path
 from src.crawler import crawl_website
 from src.database import create_audit_run, save_findings
 from src.lighthouse_analyzer import analyze_with_lighthouse
+from src.lighthouse_history import save_lighthouse_scores
 from src.report_generator import write_report
 
 
@@ -29,6 +30,8 @@ def main(argv=None):
                "lighthouse_available": bool(lighthouse and lighthouse.get("available"))}
     run_id = create_audit_run(args.url, len(result["pages"]), len(result["findings"]), summary)
     save_findings(run_id, result["findings"])
+    if lighthouse and lighthouse.get("available"):
+        save_lighthouse_scores(run_id, lighthouse)
     result["audit_run_id"] = run_id
     result["summary"] = summary
     result["lighthouse"] = lighthouse
