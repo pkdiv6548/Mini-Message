@@ -1,5 +1,6 @@
 """Command-line entry point for Website Audit Automation."""
 import argparse
+from urllib.parse import urlparse
 
 from src.crawler import crawl_website
 from src.dashboard_generator import generate_dashboard
@@ -31,11 +32,18 @@ def main(argv=None):
     if not 1 <= args.max_links <= 500:
         parser.error("--max-links must be between 1 and 500")
     result = crawl_website(args.url, max_pages=args.max_pages, timeout=args.timeout)
-    references = (
+    references = [
         {"source_url": page.get("url"), "target_url": link}
         for page in result["pages"]
         for link in page.get("links", [])
-    )
+    ]
+    unique_valid_targets = {
+        item["target_url"].strip()
+        for item in references
+        if isinstance(item.get("target_url"), str)
+        and urlparse(item["target_url"].strip()).scheme in ("http", "https")
+        and urlparse(item["target_url"].strip()).hostname
+    }
     link_findings = check_links(
         references, timeout=args.timeout, max_links=args.max_links, base_url=args.url
     ) if args.check_links else []
@@ -46,7 +54,7 @@ def main(argv=None):
         "findings": len(result["findings"]),
         "broken_links": sum(item.get("type") == "broken_link" for item in link_findings),
         "redirected_links": sum(item.get("type") == "redirected_link" for item in link_findings),
-        "links_checked": len({item.get("target_url") for item in link_findings if item.get("target_url")}),
+        "links_checked": min(len(unique_valid_targets), args.max_links) if args.check_links else 0,
         "lighthouse_available": bool(lighthouse and lighthouse.get("available")),
     }
     run_id = create_audit_run(args.url, len(result["pages"]), len(result["findings"]), summary)
@@ -61,6 +69,7 @@ def main(argv=None):
     print(f"Pages scanned: {len(result['pages'])}")
     print(f"Findings: {len(result['findings'])}")
     if args.check_links:
+        print(f"Links checked: {summary['links_checked']}")
         print(f"Broken links: {summary['broken_links']}")
         print(f"Redirected links: {summary['redirected_links']}")
     print(f"Report: {report_path}")
