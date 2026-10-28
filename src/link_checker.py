@@ -1,37 +1,117 @@
-"""Bounded HTTP checks for URLs discovered during a website crawl."""
+"""Bounded HTTP checks for links discovered during a website crawl."""
 from urllib.parse import urlparse
+
 import requests
 
 
-def check_links(urls, timeout=8, max_links=100):
-    """Return findings for unreachable HTTP(S) links, checking each URL once."""
-    findings = []
-    checked = set()
-    session = requests.Session()
-    for url in urls:
-        if url in checked or len(checked) >= max_links:
+def _normalise_reference(item):
+    """Accept a URL string or a mapping with source_url and target_url/url."""
+    if isinstance(item, str):
+        return None, item
+    if isinstance(item, dict):
+        return item.get("source_url"), item.get("target_url") or item.get("url")
+    return None, None
+
+
+def _scope(url, base_url):
+    if not base_url:
+        return "unknown"
+    target_host = (urlparse(url).hostname or "").lower()
+    base_host = (urlparse(base_url).hostname or "").lower()
+    return "internal" if target_host and target_host == base_host else "external"
+
+
+def check_links(urls, timeout=8, max_links=100, base_url=None):
+    """Check unique HTTP(S) targets and report source, scope and redirects.
+
+    urls may contain strings or dictionaries with source_url and target_url.
+    Request count is bounded by max_links. Successful redirect chains are
+    reported as low-severity redirected_link findings for cleanup.
+    """
+    if max_links < 1:
+        return []
+    references = {}
+    for item in urls:
+        source_url, target_url = _normalise_reference(item)
+        if not isinstance(target_url, str):
             continue
-        checked.add(url)
-        parsed = urlparse(url)
+        target_url = target_url.strip()
+        parsed = urlparse(target_url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
             continue
-        try:
-            response = session.head(url, timeout=timeout, allow_redirects=True)
-            if response.status_code in (405, 501):
-                response = session.get(url, timeout=timeout, allow_redirects=True, stream=True)
-                response.close()
-            if response.status_code >= 400:
-                findings.append({
-                    "url": url,
-                    "type": "broken_link",
-                    "severity": "high" if response.status_code >= 500 else "medium",
-                    "message": f"Linked URL returned HTTP {response.status_code}",
+        entry = references.setdefault(target_url, {"sources": []})
+        if source_url and source_url not in entry["sources"]:
+            entry["sources"].append(source_url)
+
+    findings = []
+    session = requests.Session()
+    try:
+        for target_url, reference in list(references.items())[:max_links]:
+            source_urls = reference["sources"]
+            scope = _scope(target_url, base_url)
+            metadata = {
+                "url": target_url,
+                "target_url": target_url,
+                "source_url": source_urls[0] if source_urls else None,
+                "source_urls": source_urls,
+                "link_scope": scope,
+            }
+            try:
+                response = session.head(target_url, timeout=timeout, allow_redirects=True)
+                if response.status_code in (403, 405, 501):
+                    response = session.get(
+                        target_url, timeout=timeout, allow_redirects=True, stream=True
+                    )
+                    response.close()
+
+                response_url = getattr(response, "url", None)
+                final_url = response_url if isinstance(response_url, str) and response_url else target_url
+                status_code = response.status_code
+                history = getattr(response, "history", [])
+                redirect_count = len(history) if isinstance(history, (list, tuple)) else 0
+                metadata.update({
+                    "final_url": final_url,
+                    "final_scope": _scope(final_url, base_url),
+                    "status_code": status_code,
+                    "redirect_count": redirect_count,
                 })
-        except requests.RequestException as exc:
-            findings.append({
-                "url": url,
-                "type": "broken_link",
-                "severity": "medium",
-                "message": f"Linked URL could not be reached: {exc.__class__.__name__}",
-            })
+
+                if status_code >= 400:
+                    findings.append({
+                        **metadata,
+                        "type": "broken_link",
+                        "severity": "high" if status_code >= 500 else "medium",
+                        "message": (
+                            f"Linked URL returned HTTP {status_code}; final destination: {final_url}; "
+                            f"scope: {scope}; final scope: {metadata['final_scope']}; "
+                            f"referenced by: {', '.join(source_urls) or 'unknown source'}"
+                        ),
+                    })
+                elif redirect_count or final_url.rstrip("/") != target_url.rstrip("/"):
+                    findings.append({
+                        **metadata,
+                        "type": "redirected_link",
+                        "severity": "low",
+                        "message": (
+                            f"Link redirects {redirect_count} time(s) to {final_url}; scope: {scope}; "
+                            f"final scope: {metadata['final_scope']}; "
+                            f"referenced by: {', '.join(source_urls) or 'unknown source'}"
+                        ),
+                    })
+            except requests.RequestException as exc:
+                findings.append({
+                    **metadata,
+                    "type": "broken_link",
+                    "severity": "medium",
+                    "final_url": None,
+                    "final_scope": None,
+                    "status_code": None,
+                    "redirect_count": 0,
+                    "message": (
+                        f"Linked URL could not be reached: {exc.__class__.__name__}; scope: {scope}; "
+                        f"referenced by: {', '.join(source_urls) or 'unknown source'}"
+                    ),
+                })
+    finally:
+        session.close()
     return findings
