@@ -23,6 +23,7 @@ def test_reports_http_error_with_source_and_scope(MockSession):
     assert findings[0]["type"] == "broken_link"
     assert findings[0]["status_code"] == 404
     assert findings[0]["link_scope"] == "internal"
+    assert findings[0]["final_scope"] == "internal"
     assert findings[0]["source_url"] == "https://example.com/"
     assert "404" in findings[0]["message"]
     assert "final destination" in findings[0]["message"]
@@ -64,7 +65,7 @@ def test_duplicate_targets_checked_once_and_sources_are_preserved(MockSession):
 
 
 @patch("src.link_checker.requests.Session")
-def test_successful_redirect_is_reported_with_final_destination(MockSession):
+def test_successful_redirect_is_reported_with_final_destination_and_scope(MockSession):
     session = Mock()
     response = Mock(status_code=200)
     response.url = "https://cdn.example.net/new"
@@ -82,6 +83,7 @@ def test_successful_redirect_is_reported_with_final_destination(MockSession):
     assert findings[0]["final_url"] == "https://cdn.example.net/new"
     assert findings[0]["redirect_count"] == 1
     assert findings[0]["link_scope"] == "internal"
+    assert findings[0]["final_scope"] == "external"
 
 
 @patch("src.link_checker.requests.Session")
@@ -100,7 +102,7 @@ def test_request_failure_is_a_finding(MockSession):
 
 
 @patch("src.link_checker.requests.Session")
-def test_external_scope_and_max_links_bound(MockSession):
+def test_max_links_bounds_requests_and_ignores_non_http_links(MockSession):
     session = Mock()
     response = Mock(status_code=200)
     response.url = "https://external.example/path"
@@ -121,7 +123,7 @@ def test_external_scope_and_max_links_bound(MockSession):
 
 
 @patch("src.link_checker.requests.Session")
-def test_redirect_fallback_to_get_preserves_final_status(MockSession):
+def test_get_fallback_reports_server_error(MockSession):
     session = Mock()
     session.head.return_value = Mock(status_code=501)
     response = Mock(status_code=503)
