@@ -1,4 +1,4 @@
-name: Mini Message CI/CD
+name: Website Audit Automation
 
 on:
   push:
@@ -11,57 +11,40 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Validate static site
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '22'
-      - name: Check required deployment files
-        run: |
-          test -f public/index.html
-          test -f public/style.css
-          test -f public/app.js
-          test -f public/config.js
-          test -f public/_headers
-          grep -q 'style.css' public/index.html
-          grep -q 'app.js' public/index.html
-          grep -q 'config.js' public/index.html
-      - name: Check JavaScript syntax
-        run: |
-          node --check public/app.js
-          node --check public/config.js
-      - name: Check public assets for server-only secrets
-        run: |
-          if grep -RInE 'service_role|SUPABASE_SERVICE_ROLE_KEY|CLOUDFLARE_API_TOKEN' public/; then
-            echo 'Possible server-only secret found in public files.'
-            exit 1
-          fi
-          echo 'Static checks passed.'
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m compileall -q src tests
+      - run: python -m pytest -q
 
-  deploy:
-    name: Deploy to Cloudflare Pages
-    needs: validate
-    if: github.event_name != 'pull_request'
+  publish-dashboard:
     runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '22'
-      - name: Deploy public/ to Cloudflare Pages
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Generate static project status page
+        run: |
+          mkdir -p site
+          cat > site/index.html <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Website Audit Automation</title><style>body{font:16px system-ui;max-width:760px;margin:4rem auto;padding:0 1rem;line-height:1.6;color:#172033}code{background:#eef2f6;padding:.2rem .4rem;border-radius:4px}</style><h1>Website Audit Automation</h1><p>Python-based website auditing toolkit for SEO checks, HTTP errors, and optional Lighthouse reports.</p><p>The crawler runs locally or in an authorized GitHub Actions job. This page is a static project overview, not an online crawler interface.</p><p><a href="https://github.com/pkdiv6548/Mini-Message">Source repository</a></p></html>
+          HTML
+      - name: Deploy static status page to Cloudflare Pages when secrets exist
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo '::warning::Deployment skipped. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub repository Actions secrets, then re-run this workflow.'
+            echo "::warning::Cloudflare publishing skipped: configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Actions secrets."
             exit 0
           fi
-          npx --yes wrangler pages deploy public --project-name mini-message --branch "$GITHUB_REF_NAME" --commit-hash "$GITHUB_SHA" --commit-message "$GITHUB_EVENT_NAME"
+          npx --yes wrangler pages deploy site --project-name mini-message --branch "$GITHUB_REF_NAME" --commit-hash "$GITHUB_SHA" --commit-message "Publish audit automation project overview"
