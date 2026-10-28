@@ -1,11 +1,15 @@
 name: Website Audit Automation
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: "Deploy the static project overview to Cloudflare Pages"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,26 +29,27 @@ jobs:
   publish-dashboard:
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages == true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install -r requirements.txt
+      - name: Require Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Deployment requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository Actions secrets."
+            exit 1
+          fi
       - name: Generate static project status page
         run: |
           mkdir -p site
           cat > site/index.html <<'HTML'
           <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Website Audit Automation</title><style>body{font:16px system-ui;max-width:760px;margin:4rem auto;padding:0 1rem;line-height:1.6;color:#172033}code{background:#eef2f6;padding:.2rem .4rem;border-radius:4px}</style><h1>Website Audit Automation</h1><p>Python-based website auditing toolkit for SEO checks, HTTP errors, and optional Lighthouse reports.</p><p>The crawler runs locally or in an authorized GitHub Actions job. This page is a static project overview, not an online crawler interface.</p><p><a href="https://github.com/pkdiv6548/Mini-Message">Source repository</a></p></html>
           HTML
-      - name: Deploy static status page to Cloudflare Pages when secrets exist
+      - name: Deploy static status page to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::warning::Cloudflare publishing skipped: configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Actions secrets."
-            exit 0
-          fi
           npx --yes wrangler pages deploy site --project-name mini-message --branch "$GITHUB_REF_NAME" --commit-hash "$GITHUB_SHA" --commit-message "Publish audit automation project overview"
