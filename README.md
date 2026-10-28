@@ -20,10 +20,10 @@ pip install -r requirements.txt
 
 ## Run
 ```bash
-python -m src.main https://example.com --max-pages 10
+python -m src.main https://example.com --max-pages 10 --check-links
 ```
 
-Optional Lighthouse (requires Chrome/Chromium and Lighthouse CLI):
+Optional broken-link checks test up to 100 discovered URLs using HTTP HEAD requests (with GET fallback when unsupported). Use only on sites you own or are authorized to audit.\n\nOptional Lighthouse (requires Chrome/Chromium and Lighthouse CLI):
 ```bash
 npm install -g lighthouse
 python -m src.main https://example.com --max-pages 10 --lighthouse
