@@ -46,6 +46,12 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
             lighthouse_scores.setdefault(row["audit_run_id"], {})[row["category"]] = row["score"]
 
     previous_by_site = {}
+    previous_run = {}
+    for run in reversed(runs):
+        site = run.get("website_url", "")
+        previous_run[run["id"]] = previous_by_site.get(site)
+        previous_by_site[site] = run
+
     rows = []
     for run in runs:
         run_id = run["id"]
@@ -56,7 +62,7 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
             f"{name.title()}: {counts.get(name, 0)}"
             for name in ("high", "medium", "low")
         )
-        previous = previous_by_site.get(site)
+        previous = previous_run.get(run_id)
         if previous:
             previous_summary = _summary(previous)
             comparison = (
@@ -86,7 +92,6 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
             _e(severity) + "</td><td>" + _e(summary.get("broken_links", 0)) +
             "</td><td>" + _e(score_text) + "</td><td>" + _e(comparison) + "</td></tr>"
         )
-        previous_by_site[site] = run
 
     body = "".join(rows) or "<tr><td colspan='9'>No audit history yet. Run an audit to populate this dashboard.</td></tr>"
     totals = {
