@@ -14,7 +14,7 @@ LIGHTHOUSE_CATEGORIES = (
 
 
 def _lighthouse_scores(connection):
-    """Return score and previous-run comparison indexed by audit run/category."""
+    """Return scores and changes against the previous run for each site/category."""
     rows = connection.execute("""
         SELECT lr.audit_run_id, ar.website_url, lr.category, lr.score
         FROM lighthouse_results lr
@@ -24,28 +24,22 @@ def _lighthouse_scores(connection):
 
     scores = {}
     by_website_category = {}
+    valid_categories = {key for key, _label in LIGHTHOUSE_CATEGORIES}
     for row in rows:
-        run_id = row["audit_run_id"]
-        category = row["category"]
-        score = row["score"]
-        if category not in {key for key, _ in LIGHTHOUSE_CATEGORIES} or score is None:
+        run_id, category, score = row["audit_run_id"], row["category"], row["score"]
+        if category not in valid_categories or score is None:
             continue
-        scores[(run_id, category)] = float(score)
+        score = float(score)
+        scores[(run_id, category)] = score
         by_website_category.setdefault((row["website_url"], category), []).append(
-            (run_id, float(score))
+            (run_id, score)
         )
 
     deltas = {}
-    for entries in by_website_category.values():
+    for (_website_url, category), entries in by_website_category.items():
         for index, (run_id, score) in enumerate(entries):
             if index + 1 < len(entries):
-                previous_score = entries[index + 1][1]
-                deltas[(run_id, entries[index][0] if False else "")] = 0
-                # The category is part of the grouping key; the run ID is unique.
-                deltas[(run_id, next(
-                    category for (website, category), values in by_website_category.items()
-                    if values is entries
-                ))] = score - previous_score
+                deltas[(run_id, category)] = score - entries[index + 1][1]
     return scores, deltas
 
 
@@ -69,6 +63,10 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
             finding_counts.setdefault(row["audit_run_id"], {})[row["severity"]] = row["total"]
         lighthouse_scores, lighthouse_deltas = _lighthouse_scores(connection)
 
+    visible_run_ids = {run["id"] for run in runs}
+    lighthouse_run_ids = {
+        run_id for run_id, _category in lighthouse_scores if run_id in visible_run_ids
+    }
     rows = []
     for run in runs:
         summary = {}
@@ -100,10 +98,7 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
         "runs": len(runs),
         "pages": sum(int(run.get("page_count") or 0) for run in runs),
         "issues": sum(int(run.get("issue_count") or 0) for run in runs),
-        "lighthouse_runs": len({
-            run_id for (run_id, _category), _score in lighthouse_scores.items()
-            if any(run["id"] == run_id for run in runs)
-        }),
+        "lighthouse_runs": len(lighthouse_run_ids),
     }
     headings = "".join(f"<th>{html.escape(label)} (Δ)</th>" for _key, label in LIGHTHOUSE_CATEGORIES)
     document = f"""<!doctype html>
@@ -122,7 +117,7 @@ def generate_dashboard(output_path="reports/dashboard.html", db_path=None, limit
 <p>Lighthouse columns show the score out of 100 and the change versus the previous recorded score for the same website and category. “first” means no older score exists.</p>
 <div class="table-wrap"><table><thead><tr><th>Run</th><th>Started</th><th>Website</th><th>Pages</th><th>Issues</th><th>Severity breakdown</th><th>Broken links</th>{headings}</tr></thead>
 <tbody>{body}</tbody></table></div>
-<p>Refresh this dashboard after running new audits to view updated history. Lighthouse history is saved only when a run uses <code>--lighthouse</code> and Lighthouse is available locally.</p></body></html>"""
+<p>Refresh this dashboard after running new audits to view updated history. Lighthouse history is saved only when a run uses the --lighthouse option and Lighthouse is available locally.</p></body></html>"""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(document, encoding="utf-8")
