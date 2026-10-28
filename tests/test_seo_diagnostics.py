@@ -41,6 +41,7 @@ def test_duplicate_titles_and_descriptions_report_each_url():
 @patch("src.crawler.requests.Session")
 def test_crawler_extracts_canonical_robots_and_reports_seo(MockSession):
     session = Mock()
+    session.headers = {}
     response = Mock(status_code=200, url="https://example.com/")
     response.headers = {"content-type": "text/html; charset=utf-8"}
     response.text = """<html><head><title>Useful page title with enough detail</title>
