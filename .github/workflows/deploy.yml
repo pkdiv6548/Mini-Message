@@ -1,30 +1,36 @@
-name: Deploy Mini Message to GitHub Pages
+name: Validate Mini Message
+
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: true
+
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  validate-static-site:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Validate required files
+        run: |
+          test -f index.html
+          test -f style.css
+          test -f app.js
+          test -f config.js
+          echo "Static site files are present."
+      - name: Check for accidentally committed server keys
+        run: |
+          if grep -RInE 'service_role|SUPABASE_SERVICE_ROLE_KEY|CF_API_TOKEN' --exclude-dir=.git --exclude='README.md' .; then
+            echo "Possible server-side secret detected. Review the match before deploying."
+            exit 1
+          fi
+      - name: Check HTML references
+        run: |
+          grep -q 'style.css' index.html
+          grep -q 'app.js' index.html
+          echo "Static references look present."
