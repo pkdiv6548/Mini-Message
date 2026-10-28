@@ -25,6 +25,8 @@ python -m src.main https://example.com --max-pages 10 --check-links
 
 The crawler checks page titles and meta descriptions (missing, short, and long), duplicate titles/descriptions across crawled pages, H1 heading counts, canonical links, and robots meta directives such as `noindex`. Suggested character ranges are heuristics, not guaranteed ranking rules; snippets and search-engine behavior can vary. A `noindex` directive may be intentional and should be reviewed rather than automatically removed.
 
+The HTML audit report includes page-level title, description, canonical, robots and H1 information, findings grouped by severity and category, and Lighthouse scores when available. HTML values are escaped before being written to the report. Reports are saved under `reports/`; the machine-readable full result is saved as `reports/latest.json`.
+
 Optional broken-link checks test up to 100 discovered URLs using HTTP HEAD requests (with GET fallback when unsupported). Use only on sites you own or are authorized to audit.
 
 Optional Lighthouse (requires Chrome/Chromium and Lighthouse CLI):
@@ -33,9 +35,7 @@ npm install -g lighthouse
 python -m src.main https://example.com --max-pages 10 --lighthouse
 ```
 
-Generated reports are saved under `reports/`; SQLite history is saved at `data/audits.db`.
-
-Generate an HTML dashboard from previous local audit runs:
+SQLite history is saved at `data/audits.db`. Generate an HTML dashboard from previous local audit runs:
 ```bash
 python -m src.main --dashboard-only
 ```
