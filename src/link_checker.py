@@ -64,9 +64,11 @@ def check_links(urls, timeout=8, max_links=100, base_url=None):
                     )
                     response.close()
 
-                final_url = getattr(response, "url", None) or target_url
+                response_url = getattr(response, "url", None)
+                final_url = response_url if isinstance(response_url, str) and response_url else target_url
                 status_code = response.status_code
-                redirect_count = len(getattr(response, "history", []) or [])
+                history = getattr(response, "history", [])
+                redirect_count = len(history) if isinstance(history, (list, tuple)) else 0
                 metadata.update({
                     "final_url": final_url,
                     "status_code": status_code,
